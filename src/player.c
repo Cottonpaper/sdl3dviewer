@@ -83,6 +83,24 @@ static bool overlaps_player(const Shape *s, vec3 pos)
     return false;
 }
 
+/* Round out sphere collisions: push the player out along the actual surface. */
+static void sphere_push_out(Player *p, const Shape *s)
+{
+    vec3 c = s->sphere.center;
+    vec3 diff = v3_sub(closest_on_player(c, p->pos), c);
+    float dist = v3_len(diff);
+    float target = s->sphere.radius + SKIN;
+    if (dist >= target)
+        return;
+
+    vec3 n = dist > 1e-6f ? v3_scale(diff, 1.0f / dist) : v3(0.0f, 1.0f, 0.0f);
+    p->pos = v3_add(p->pos, v3_scale(n, target - dist));
+    if (n.y > 0.3f) { /* pushed mostly upward: standing on the sphere */
+        p->grounded = true;
+        p->vel.y = 0.0f;
+    }
+}
+
 /* Move along one axis, then push out of any shape we ended up inside. */
 static void move_axis(Player *p, int axis, float delta, const Shape *shapes, int count)
 {
@@ -135,17 +153,22 @@ static void move_axis(Player *p, int axis, float delta, const Shape *shapes, int
                 }
                 p->vel.y = 0.0f;
             } else {
-                /* push out to the circular wall */
+                /* push out along the moved axis to the circular wall, on the
+                   side the player is actually on (pushing by movement
+                   direction would fling them to the far side when they graze
+                   or enter past the center plane) */
                 float c = axis == 0 ? s->cyl.base.x : s->cyl.base.z;
-                float other = axis == 0 ? p->pos.z : p->pos.x;
+                float moved = axis == 0 ? p->pos.x : p->pos.z;
                 float other_c = axis == 0 ? s->cyl.base.z : s->cyl.base.x;
-                float d = other - other_c;
+                float d = (axis == 0 ? p->pos.z : p->pos.x) - other_c;
                 float rr = s->cyl.radius + PLAYER_RADIUS + SKIN;
                 float t = rr * rr - d * d;
                 if (t > 0.0f) {
-                    float off = sqrtf(t);
+                    float side = moved > c ? 1.0f : -1.0f;
+                    if (moved == c)
+                        side = delta > 0.0f ? 1.0f : -1.0f;
                     float *pa = axis == 0 ? &p->pos.x : &p->pos.z;
-                    *pa = delta > 0.0f ? c + off : c - off;
+                    *pa = c + side * sqrtf(t);
                 }
             }
             break;
@@ -169,33 +192,16 @@ static void move_axis(Player *p, int axis, float delta, const Shape *shapes, int
                 }
                 /* beside the sphere: horizontal pushes handle it */
             } else {
-                /* axis-aligned push against the bounding box; the radial
-                   pass after all axis moves rounds this off */
-                float lo = (axis == 0 ? c.x : c.z) - r;
-                float hi = (axis == 0 ? c.x : c.z) + r;
-                *pos = delta > 0.0f ? lo - PLAYER_RADIUS - SKIN : hi + PLAYER_RADIUS + SKIN;
+                /* radial push-out along the actual sphere surface: an
+                   axis-aligned snap against the bounding box stutters
+                   (variable snap distance per approach angle) and can
+                   fling the player to the far side, same as the old
+                   cylinder response did */
+                sphere_push_out(p, s);
             }
             break;
         }
         }
-    }
-}
-
-/* Round out sphere collisions: push the player out along the actual surface. */
-static void sphere_push_out(Player *p, const Shape *s)
-{
-    vec3 c = s->sphere.center;
-    vec3 diff = v3_sub(closest_on_player(c, p->pos), c);
-    float dist = v3_len(diff);
-    float target = s->sphere.radius + SKIN;
-    if (dist >= target)
-        return;
-
-    vec3 n = dist > 1e-6f ? v3_scale(diff, 1.0f / dist) : v3(0.0f, 1.0f, 0.0f);
-    p->pos = v3_add(p->pos, v3_scale(n, target - dist));
-    if (n.y > 0.3f) { /* pushed mostly upward: standing on the sphere */
-        p->grounded = true;
-        p->vel.y = 0.0f;
     }
 }
 
