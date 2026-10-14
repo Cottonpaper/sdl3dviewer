@@ -1,3 +1,9 @@
+# WARNING: AI SLOP
+
+This repo is written entirely with Opus 5.5/GLM 5.3 Flash in opencode. big gay balls
+
+
+
 # sdl3dviewer
 
 A small first-person 3D environment in C using SDL3 and OpenGL 3.3 core (loaded with GLAD).
@@ -34,8 +40,9 @@ Runs on Windows and Linux, built with a plain GNU Makefile.
 
    Inside the MSYS2 UCRT64 shell, plain `make run` works too.
 
-`SDL3.dll` is copied next to the `.exe` during the build, so the contents of `build/release/`
-can be run directly (double-click) or copied elsewhere; no other MSYS2 DLLs are needed.
+`SDL3.dll` and every MSYS2 runtime DLL it depends on (e.g. `libiconv-2.dll`, found automatically
+by scanning the DLL import tables) are copied next to the `.exe` during the build, so the
+contents of `build/release/` can be run directly (double-click) or copied elsewhere.
 
 ### Linux
 

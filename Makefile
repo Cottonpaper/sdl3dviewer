@@ -51,6 +51,9 @@ endif
 BIN := $(BUILDDIR)/$(TARGET)$(EXE)
 
 # On Windows, copy SDL3.dll next to the exe so it runs outside the MSYS2 environment.
+# SDL3.dll itself depends on MSYS2 runtime DLLs (e.g. libiconv-2.dll), so the
+# copy rule walks the DLL import tables with objdump and copies every dependency
+# that lives in the MSYS2 bin directory too (system DLLs are not there and are skipped).
 ifeq ($(OS),Windows_NT)
 SDL_DLL := $(shell $(PKG_CONFIG) --variable=prefix sdl3)/bin/SDL3.dll
 RUNTIME := $(BUILDDIR)/SDL3.dll
@@ -72,6 +75,21 @@ $(BIN): $(OBJ)
 ifeq ($(OS),Windows_NT)
 $(RUNTIME): | $(BUILDDIR)
 	cp "$(SDL_DLL)" $@
+	@bin=$$(dirname "$(SDL_DLL)"); \
+	seen=" SDL3.dll "; queue="SDL3.dll"; \
+	while [ -n "$$queue" ]; do \
+		dll=$${queue%% *}; \
+		if [ "$$dll" = "$$queue" ]; then queue=; else queue=$${queue#* }; fi; \
+		for dep in $$(objdump -p "$$bin/$$dll" 2>/dev/null | sed -n 's/^[[:space:]]*DLL Name: //p'); do \
+			case "$$seen" in *" $$dep "*) ;; *) \
+				if [ -f "$$bin/$$dep" ]; then \
+					seen="$$seen$$dep "; \
+					queue="$$queue $$dep"; \
+					cp -f "$$bin/$$dep" $(BUILDDIR)/; \
+				fi ;; \
+			esac; \
+		done; \
+	done
 endif
 
 $(BUILDDIR)/%.o: src/%.c | $(BUILDDIR)

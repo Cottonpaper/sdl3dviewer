@@ -8,11 +8,6 @@
     { { x0, y0, z0 }, { x1, y1, z1 }, { r, g, b } }
 
 static const Box boxes[] = {
-    /* Boundary walls */
-    BOX(-ARENA - WALL_T, 0, -ARENA - WALL_T,  ARENA + WALL_T, WALL_H, -ARENA,           0.55f, 0.55f, 0.60f),
-    BOX(-ARENA - WALL_T, 0,  ARENA,           ARENA + WALL_T, WALL_H,  ARENA + WALL_T,  0.55f, 0.55f, 0.60f),
-    BOX(-ARENA - WALL_T, 0, -ARENA,          -ARENA,          WALL_H,  ARENA,           0.50f, 0.50f, 0.55f),
-    BOX( ARENA,          0, -ARENA,           ARENA + WALL_T, WALL_H,  ARENA,           0.50f, 0.50f, 0.55f),
 
     /* Staircase: each step is jumpable from the previous one */
     BOX( 4.0f, 0.0f, -8.0f,  6.0f, 0.6f, -6.0f,  0.85f, 0.45f, 0.30f),
