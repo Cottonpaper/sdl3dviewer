@@ -1,5 +1,6 @@
 # sdl3dviewer - build with GNU make.
 #   Linux:   make            (needs SDL3 dev package + pkg-config)
+#   macOS:   make            (brew install sdl3 pkg-config)
 #   Windows: make            (from an MSYS2 UCRT64 shell)
 #
 # Targets: all (default, debug build), release, run, clean

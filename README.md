@@ -7,7 +7,7 @@ This repo is written entirely with Opus 5.5/GLM 5.3 Flash in opencode. big gay b
 # sdl3dviewer
 
 A small first-person 3D environment in C using SDL3 and OpenGL 3.3 core (loaded with GLAD).
-Runs on Windows and Linux, built with a plain GNU Makefile.
+Runs on Windows, Linux and macOS, built with a plain GNU Makefile.
 
 ## Building
 
@@ -49,9 +49,31 @@ Then:
 make run
 ```
 
+### macOS
+
+Install the dependencies with [Homebrew](https://brew.sh/):
+
+```sh
+brew install sdl3 pkg-config
+```
+
+Then:
+
+```sh
+make run
+```
+
+Notes:
+
+- Apple's default `clang` (what `gcc` resolves to) works fine; no other
+  toolchain is needed.
+- The debug build enables ASan/UBSan, which clang on macOS supports.
+- The binary runs from the terminal; there is no `.app` bundle packaging,
+  so it is not launchable from Finder by double-clicking.
+
 ### Make targets
 
-- `make` - debug build in `build/debug/` (with ASan/UBSan on Linux)
+- `make` - debug build in `build/debug/` (with ASan/UBSan on Linux and macOS)
 - `make release` - optimised build in `build/release/` (no console window on Windows)
 - `make run` - build and run (use `make run BUILD=release` for the release build)
 - `make clean` - remove `build/`
@@ -63,8 +85,8 @@ GLAD was generated with `glad2`:
 
 The world (built-in level + everything placed in build mode) is saved automatically
 when the game closes, and any time with `F5`. The file lives in SDL's per-user
-preferences directory: `%APPDATA%\sdl3dviewer\level.txt` on Windows, and on Linux
-`~/.local/share/sdl3dviewer/level.txt`. The exact path is printed to the console
+preferences directory: `%APPDATA%\sdl3dviewer\level.txt` on Windows, `~/Library/Application Support/sdl3dviewer/level.txt`
+on macOS, and on Linux `~/.local/share/sdl3dviewer/level.txt`. The exact path is printed to the console
 (debug build) at startup.
 
 - If the file exists it **replaces** the built-in level at startup; without it you
