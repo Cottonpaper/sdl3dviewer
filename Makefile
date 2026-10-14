@@ -50,6 +50,14 @@ endif
 
 BIN := $(BUILDDIR)/$(TARGET)$(EXE)
 
+# The GL driver stack (Mesa) makes one-shot allocations SDL never frees;
+# keep LSan from reporting those as leaks in the debug build.
+ifeq ($(OS),Windows_NT)
+RUN_ENV :=
+else
+RUN_ENV := LSAN_OPTIONS=suppressions=$(CURDIR)/lsan.supp
+endif
+
 # On Windows, copy SDL3.dll next to the exe so it runs outside the MSYS2 environment.
 # SDL3.dll itself depends on MSYS2 runtime DLLs (e.g. libiconv-2.dll), so the
 # copy rule walks the DLL import tables with objdump and copies every dependency
@@ -67,7 +75,7 @@ release:
 	$(MAKE) BUILD=release
 
 run: all
-	./$(BIN)
+	$(RUN_ENV) ./$(BIN)
 
 $(BIN): $(OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)

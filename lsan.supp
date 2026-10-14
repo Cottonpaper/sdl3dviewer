@@ -1,0 +1,10 @@
+# LeakSanitizer suppressions for the debug (ASan) build.
+#
+# SDL loads the OpenGL driver stack (Mesa etc.), which makes one-time
+# internal allocations that are never freed and are not reachable from
+# our code. These are intentional library-level caches, not leaks in
+# sdl3dviewer, so suppress anything allocated inside SDL3/driver code.
+leak:libSDL3
+leak:_glapi_
+leak:libgallium
+leak:libGL
