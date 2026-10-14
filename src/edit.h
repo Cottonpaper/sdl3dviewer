@@ -6,6 +6,7 @@
 #include "player.h"
 
 #define EDIT_SHAPE_COUNT 3
+#define EDIT_COLOR_COUNT 9
 
 /* Build-mode editor.
 
@@ -28,6 +29,7 @@ typedef struct {
 typedef struct {
     EditMode mode;
     int shape;     /* SHAPE_* being placed */
+    int color;     /* palette index for the placed shape */
     int focused;   /* menu field index, -1 = none */
     float mx, my;  /* menu cursor position (window coords) */
     EditField fields[EDIT_SHAPE_COUNT][3]; /* per shape, per field */
@@ -44,6 +46,8 @@ typedef struct {
     EditRect shape_btns[EDIT_SHAPE_COUNT];
     EditRect field_labels[3];
     EditRect fields[3];
+    EditRect color_label;
+    EditRect swatches[EDIT_COLOR_COUNT];
 } EditMenuLayout;
 
 void edit_init(Editor *ed);
@@ -67,5 +71,7 @@ int edit_field_count(int shape);
 const char *edit_field_label(int shape, int field);
 const char *edit_field_text(const Editor *ed, int field);
 const char *edit_field_placeholder(const Editor *ed, int field);
+const char *edit_color_name(int color);
+vec3 edit_color_rgb(int color);
 
 #endif

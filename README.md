@@ -90,7 +90,7 @@ pause menu) are saved to `settings.txt` in the same directory.
 | Shift | Sprint |
 | Space | Jump |
 | Esc | Open pause menu (Return to Game / Settings / Exit) / exit build mode, close menu |
-| E | Build menu (choose shape, type dimensions, Enter to place) |
+| E | Build menu (choose shape and color, type dimensions, Enter to place) |
 | R | Toggle remove mode; in remove mode, left click removes the highlighted shape |
 | Left click | Recapture mouse / in the menu: click buttons and fields / place in build mode |
 | Right click | Cancel menu / build mode |

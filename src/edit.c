@@ -17,9 +17,25 @@
 #define FIELD_MAX   8.0f
 #define FIELD_MAXLEN 15
 
-#define PLACE_R 0.95f
-#define PLACE_G 0.60f
-#define PLACE_B 0.20f
+/* Placement palette; ORANGE is the default so it matches the old ghost color. */
+typedef struct {
+    const char *name;
+    float r, g, b;
+} ColorDef;
+
+static const ColorDef color_defs[EDIT_COLOR_COUNT] = {
+    { "RED",    0.90f, 0.25f, 0.25f },
+    { "ORANGE", 0.95f, 0.60f, 0.20f },
+    { "YELLOW", 0.95f, 0.85f, 0.30f },
+    { "GREEN",  0.40f, 0.80f, 0.35f },
+    { "CYAN",   0.30f, 0.80f, 0.80f },
+    { "BLUE",   0.30f, 0.50f, 0.90f },
+    { "PURPLE", 0.60f, 0.40f, 0.85f },
+    { "WHITE",  0.90f, 0.90f, 0.90f },
+    { "BLACK",  0.12f, 0.12f, 0.14f },
+};
+
+#define EDIT_COLOR_DEFAULT 1 /* ORANGE */
 
 typedef struct {
     const char *name;
@@ -37,6 +53,16 @@ static const ShapeDef shape_defs[EDIT_SHAPE_COUNT] = {
 const char *edit_shape_name(int shape)
 {
     return shape_defs[shape].name;
+}
+
+const char *edit_color_name(int color)
+{
+    return color_defs[color].name;
+}
+
+vec3 edit_color_rgb(int color)
+{
+    return v3(color_defs[color].r, color_defs[color].g, color_defs[color].b);
 }
 
 int edit_field_count(int shape)
@@ -66,6 +92,7 @@ void edit_init(Editor *ed)
     memset(ed, 0, sizeof(*ed));
     ed->mode = EDIT_PLAY;
     ed->shape = SHAPE_BOX;
+    ed->color = EDIT_COLOR_DEFAULT;
     ed->focused = -1;
     ed->remove_idx = -1;
     ed->view_w = 1280.0f;
@@ -225,6 +252,11 @@ void edit_mouse_click(Editor *ed, int button, float x, float y)
             ed->focused = f;
             return;
         }
+    for (int i = 0; i < EDIT_COLOR_COUNT; i++)
+        if (in_rect(&L.swatches[i], x, y)) {
+            ed->color = i;
+            return;
+        }
     if (in_rect(&L.ok, x, y))
         confirm(ed);
 }
@@ -245,10 +277,15 @@ void edit_menu_layout(const Editor *ed, EditMenuLayout *out)
     float w = inner_w + pad * 2.0f;
     float y = 0.0f;
 
+    const float swatch = 24.0f, swatch_gap = 3.0f;
+    float swatch_row_w = EDIT_COLOR_COUNT * swatch + (EDIT_COLOR_COUNT - 1) * swatch_gap;
+
     float title_y = y;          y += title_h + 12.0f;
     float shape_y = y;          y += btn_h + 16.0f;
     float label_y = y;          y += label_h + label_gap;
-    float fld_y = y;            y += fld_h + 18.0f;
+    float fld_y = y;            y += fld_h + 14.0f;
+    float color_label_y = y;    y += label_h + label_gap;
+    float swatch_y = y;         y += swatch + 14.0f;
     float ok_y = y;             y += ok_h + 12.0f;
     float hint_y = y;
 
@@ -264,6 +301,10 @@ void edit_menu_layout(const Editor *ed, EditMenuLayout *out)
         out->field_labels[i] = (EditRect){ x0 + pad + i * (fld_w + fld_gap), y0 + label_y, fld_w, label_h };
         out->fields[i] = (EditRect){ x0 + pad + i * (fld_w + fld_gap), y0 + fld_y, fld_w, fld_h };
     }
+    out->color_label = (EditRect){ x0 + pad, y0 + color_label_y, w - pad * 2.0f, label_h };
+    float sw_x0 = x0 + (w - swatch_row_w) * 0.5f;
+    for (int i = 0; i < EDIT_COLOR_COUNT; i++)
+        out->swatches[i] = (EditRect){ sw_x0 + i * (swatch + swatch_gap), y0 + swatch_y, swatch, swatch };
     out->ok = (EditRect){ x0 + w - pad - ok_w, y0 + ok_y, ok_w, ok_h };
     out->hint = (EditRect){ x0, y0 + hint_y, w, hint_h };
 }
@@ -400,7 +441,7 @@ static Shape pending_shape(const Editor *ed)
 {
     Shape s = { 0 };
     s.type = (ShapeType)ed->shape;
-    s.color = v3(PLACE_R, PLACE_G, PLACE_B);
+    s.color = edit_color_rgb(ed->color);
 
     switch (s.type) {
     case SHAPE_BOX: {

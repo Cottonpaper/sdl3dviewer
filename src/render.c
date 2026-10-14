@@ -717,6 +717,25 @@ static void draw_menu(const Editor *ed)
                     0.95f, 0.95f, 0.95f, 1.0f);
     }
 
+    /* color picker */
+    ui_text(L.color_label.x, L.color_label.y + 2.0f, "COLOR", 1.5f, 0.65f, 0.70f, 0.75f, 1.0f);
+    const char *cname = edit_color_name(ed->color);
+    float name_x = L.color_label.x + ui_text_width("COLOR", 1.5f) + 12.0f;
+    ui_text(name_x, L.color_label.y + 2.0f, cname, 1.5f, 0.95f, 0.95f, 0.95f, 1.0f);
+    for (int i = 0; i < EDIT_COLOR_COUNT; i++) {
+        const EditRect *r = &L.swatches[i];
+        bool sel = i == ed->color;
+        bool hover = ed->mx >= r->x && ed->mx < r->x + r->w &&
+                     ed->my >= r->y && ed->my < r->y + r->h;
+        vec3 c = edit_color_rgb(i);
+        if (hover) { /* brighten towards white */
+            c = v3_add(v3_scale(c, 0.85f), v3(0.15f, 0.15f, 0.15f));
+        }
+        if (sel)
+            ui_rect(r->x - 2.0f, r->y - 2.0f, r->w + 4.0f, r->h + 4.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+        ui_rect(r->x, r->y, r->w, r->h, c.x, c.y, c.z, 1.0f);
+    }
+
     /* OK button */
     bool hover = ed->mx >= L.ok.x && ed->mx < L.ok.x + L.ok.w && ed->my >= L.ok.y && ed->my < L.ok.y + L.ok.h;
     ui_rect(L.ok.x, L.ok.y, L.ok.w, L.ok.h, hover ? 0.30f : 0.20f, hover ? 0.55f : 0.45f, 0.25f, 1.0f);
@@ -827,8 +846,10 @@ void render_frame(const Player *player, const Shape *shapes, int shape_count,
         draw_shape(&shapes[i]);
 
     if (ed) {
-        if (ed->mode == EDIT_PLACE && ed->ghost_valid)
-            draw_outline(&ed->ghost, 1.0f, 0.85f, 0.20f);
+        if (ed->mode == EDIT_PLACE && ed->ghost_valid) {
+            vec3 gc = edit_color_rgb(ed->color);
+            draw_outline(&ed->ghost, gc.x, gc.y, gc.z);
+        }
         if (ed->mode == EDIT_REMOVE && ed->remove_idx >= 0 && ed->remove_idx < shape_count)
             draw_outline(&shapes[ed->remove_idx], 1.0f, 0.25f, 0.20f);
         if (ed->mode == EDIT_MENU)
