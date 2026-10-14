@@ -602,7 +602,7 @@ static void ui_flush(void)
     ui_count = 0;
 }
 
-static void draw_outline(const Shape *s)
+static void draw_outline(const Shape *s, float r, float g, float b)
 {
     mat4 model;
     GLuint lva;
@@ -640,7 +640,7 @@ static void draw_outline(const Shape *s)
     glUseProgram(line_program);
     glUniformMatrix4fv(lloc_model, 1, GL_FALSE, model.m);
     glUniformMatrix4fv(lloc_view_proj, 1, GL_FALSE, cur_view_proj.m);
-    glUniform4f(lloc_color, 1.0f, 0.85f, 0.20f, 1.0f);
+    glUniform4f(lloc_color, r, g, b, 1.0f);
     glBindVertexArray(lva);
     glLineWidth(2.0f);
     glDrawArrays(GL_LINES, 0, count);
@@ -725,6 +725,8 @@ static void draw_hud(const Editor *ed)
     const char *msg = NULL;
     if (ed->mode == EDIT_PLACE)
         msg = "BUILD MODE   CLICK PLACE   E EDIT   ESC EXIT";
+    else if (ed->mode == EDIT_REMOVE)
+        msg = "REMOVE MODE   CLICK REMOVE   R/ESC EXIT";
     if (!msg)
         return;
 
@@ -762,7 +764,9 @@ void render_frame(const Player *player, const Shape *shapes, int shape_count, co
 
     if (ed) {
         if (ed->mode == EDIT_PLACE && ed->ghost_valid)
-            draw_outline(&ed->ghost);
+            draw_outline(&ed->ghost, 1.0f, 0.85f, 0.20f);
+        if (ed->mode == EDIT_REMOVE && ed->remove_idx >= 0 && ed->remove_idx < shape_count)
+            draw_outline(&shapes[ed->remove_idx], 1.0f, 0.25f, 0.20f);
         if (ed->mode == EDIT_MENU)
             draw_menu(ed);
         else

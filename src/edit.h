@@ -9,13 +9,15 @@
 
 /* Build-mode editor.
 
-   EDIT_PLAY  normal play
-   EDIT_MENU  mouse-driven build menu (mouse released, text input active);
-              pick a shape, type its dimensions, Enter / OK confirms
-   EDIT_PLACE ghost of the shape follows the crosshair; left-click places;
-              E reopens the menu; Esc cancels build mode entirely */
+   EDIT_PLAY   normal play
+   EDIT_MENU   mouse-driven build menu (mouse released, text input active);
+               pick a shape, type its dimensions, Enter / OK confirms
+   EDIT_PLACE  ghost of the shape follows the crosshair; left-click places;
+               E reopens the menu; Esc cancels build mode entirely
+   EDIT_REMOVE outline highlights the shape under the crosshair; left-click
+               removes it; R or Esc returns to play */
 
-typedef enum { EDIT_PLAY, EDIT_MENU, EDIT_PLACE } EditMode;
+typedef enum { EDIT_PLAY, EDIT_MENU, EDIT_PLACE, EDIT_REMOVE } EditMode;
 
 typedef struct {
     char text[16]; /* raw typed digits (empty = fall back to value) */
@@ -31,6 +33,7 @@ typedef struct {
     EditField fields[EDIT_SHAPE_COUNT][3]; /* per shape, per field */
     Shape ghost;   /* box that would be placed (valid when ghost_valid) */
     bool ghost_valid;
+    int remove_idx; /* shape under the crosshair in remove mode, -1 = none */
     float view_w, view_h;
 } Editor;
 
@@ -54,6 +57,8 @@ void edit_mouse_click(Editor *ed, int button, float x, float y);
 
 void edit_update_ghost(Editor *ed, const Player *p, const Shape *shapes, int shape_count);
 bool edit_place(Editor *ed);
+void edit_update_remove(Editor *ed, const Player *p, const Shape *shapes, int shape_count);
+bool edit_remove(Editor *ed);
 
 /* Menu geometry and data for the renderer; hit-testing and drawing share these. */
 void edit_menu_layout(const Editor *ed, EditMenuLayout *out);

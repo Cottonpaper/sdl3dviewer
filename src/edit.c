@@ -1,5 +1,6 @@
 #include "edit.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +67,7 @@ void edit_init(Editor *ed)
     ed->mode = EDIT_PLAY;
     ed->shape = SHAPE_BOX;
     ed->focused = -1;
+    ed->remove_idx = -1;
     ed->view_w = 1280.0f;
     ed->view_h = 720.0f;
     for (int s = 0; s < EDIT_SHAPE_COUNT; s++)
@@ -148,6 +150,8 @@ void edit_key(Editor *ed, int key)
     case EDIT_PLAY:
         if (key == (int)SDL_SCANCODE_E)
             ed->mode = EDIT_MENU, ed->focused = 0;
+        else if (key == (int)SDL_SCANCODE_R)
+            ed->mode = EDIT_REMOVE, ed->remove_idx = -1;
         break;
 
     case EDIT_MENU:
@@ -167,6 +171,11 @@ void edit_key(Editor *ed, int key)
     case EDIT_PLACE:
         if (key == (int)SDL_SCANCODE_E)
             ed->mode = EDIT_MENU, ed->focused = 0;
+        break;
+
+    case EDIT_REMOVE:
+        if (key == (int)SDL_SCANCODE_R)
+            ed->mode = EDIT_PLAY, ed->remove_idx = -1;
         break;
     }
 }
@@ -463,4 +472,36 @@ bool edit_place(Editor *ed)
     if (ed->mode != EDIT_PLACE || !ed->ghost_valid)
         return false;
     return scene_add_shape(ed->ghost);
+}
+
+/* --- remove mode -------------------------------------------------------- */
+
+void edit_update_remove(Editor *ed, const Player *p, const Shape *shapes, int shape_count)
+{
+    ed->remove_idx = -1;
+    if (ed->mode != EDIT_REMOVE)
+        return;
+
+    vec3 o = player_eye(p);
+    vec3 d = player_forward(p);
+    if (v3_len(d) < 1e-6f)
+        return;
+
+    float best = FLT_MAX;
+    for (int i = 0; i < shape_count; i++) {
+        float t;
+        if (ray_shape(o, d, &shapes[i], best, &t) && t > 0.0f && t < best) {
+            best = t;
+            ed->remove_idx = i;
+        }
+    }
+}
+
+bool edit_remove(Editor *ed)
+{
+    if (ed->mode != EDIT_REMOVE || ed->remove_idx < 0)
+        return false;
+    scene_remove_shape(ed->remove_idx);
+    ed->remove_idx = -1;
+    return true;
 }

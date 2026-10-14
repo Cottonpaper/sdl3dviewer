@@ -88,6 +88,7 @@ preferences directory: `%APPDATA%\sdl3dviewer\level.txt` on Windows, and on Linu
 | Space | Jump |
 | Esc | Release mouse (press again to quit) / exit build mode, close menu |
 | E | Build menu (choose shape, type dimensions, Enter to place) |
+| R | Toggle remove mode; in remove mode, left click removes the highlighted shape |
 | Left click | Recapture mouse / in the menu: click buttons and fields / place in build mode |
 | Right click | Cancel menu / build mode |
 | F5 | Save the level to disk |

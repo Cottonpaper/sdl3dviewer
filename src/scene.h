@@ -26,6 +26,7 @@ typedef struct {
 void scene_init(void);
 const Shape *scene_shapes(int *count);
 bool scene_add_shape(Shape s); /* false when the world is full */
+void scene_remove_shape(int index); /* index into scene_shapes(); shifts the rest down */
 vec3 scene_spawn(void);
 
 /* Plain-text level format ("# sdl3dviewer level v1", one shape per line).

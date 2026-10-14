@@ -215,6 +215,11 @@ int main(int argc, char **argv)
                     } else if (e.button.button == SDL_BUTTON_RIGHT) {
                         edit_cancel(&editor);
                     }
+                } else if (editor.mode == EDIT_REMOVE) {
+                    if (e.button.button == SDL_BUTTON_LEFT)
+                        edit_remove(&editor);
+                    else if (e.button.button == SDL_BUTTON_RIGHT)
+                        edit_cancel(&editor);
                 } else if (!captured) {
                     want_look = true;
                     set_mouse_captured(window, &captured, true);
@@ -257,6 +262,8 @@ int main(int argc, char **argv)
 
         if (editor.mode == EDIT_PLACE)
             edit_update_ghost(&editor, &player, shapes, shape_count);
+        else if (editor.mode == EDIT_REMOVE)
+            edit_update_remove(&editor, &player, shapes, shape_count);
 
         render_frame(&player, shapes, shape_count, &editor);
         SDL_GL_SwapWindow(window);

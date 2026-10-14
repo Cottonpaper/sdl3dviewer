@@ -62,6 +62,15 @@ bool scene_add_shape(Shape s)
     return true;
 }
 
+void scene_remove_shape(int index)
+{
+    if (index < 0 || index >= world_count)
+        return;
+    memmove(&world_shapes[index], &world_shapes[index + 1],
+            (size_t)(world_count - index - 1) * sizeof(Shape));
+    world_count--;
+}
+
 vec3 scene_spawn(void)
 {
     return v3(0.0f, 0.0f, 4.0f);
