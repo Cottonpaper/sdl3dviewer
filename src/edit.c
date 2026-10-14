@@ -192,17 +192,23 @@ void edit_key(Editor *ed, int key)
             confirm(ed);
         } else if (key == (int)SDL_SCANCODE_ESCAPE) {
             ed->mode = EDIT_PLAY;
+        } else if (key == (int)SDL_SCANCODE_R) {
+            ed->mode = EDIT_REMOVE, ed->remove_idx = -1;
         }
         break;
 
     case EDIT_PLACE:
         if (key == (int)SDL_SCANCODE_E)
             ed->mode = EDIT_MENU, ed->focused = 0;
+        else if (key == (int)SDL_SCANCODE_R)
+            ed->mode = EDIT_REMOVE, ed->remove_idx = -1;
         break;
 
     case EDIT_REMOVE:
         if (key == (int)SDL_SCANCODE_R)
             ed->mode = EDIT_PLAY, ed->remove_idx = -1;
+        else if (key == (int)SDL_SCANCODE_E)
+            ed->mode = EDIT_MENU, ed->focused = 0;
         break;
     }
 }
@@ -311,7 +317,11 @@ void edit_menu_layout(const Editor *ed, EditMenuLayout *out)
 
 /* --- ghost placement ---------------------------------------------------- */
 
-static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
+/* Ray vs shape: entry distance plus the hit point and outward surface
+   normal (face normal for boxes, radial for cylinder walls / caps and
+   spheres). hp_out/n_out may be NULL. */
+static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out,
+                      vec3 *hp_out, vec3 *n_out)
 {
     switch (s->type) {
     case SHAPE_BOX: {
@@ -320,6 +330,7 @@ static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
         float lo[3] = { s->box.min.x, s->box.min.y, s->box.min.z };
         float hi[3] = { s->box.max.x, s->box.max.y, s->box.max.z };
         float tmin = 0.0f;
+        int entry_axis = -1;
         for (int a = 0; a < 3; a++) {
             if (fabsf(da[a]) < 1e-8f) {
                 if (oa[a] < lo[a] || oa[a] > hi[a])
@@ -329,12 +340,23 @@ static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
             float t1 = (lo[a] - oa[a]) / da[a];
             float t2 = (hi[a] - oa[a]) / da[a];
             if (t1 > t2) { float tmp = t1; t1 = t2; t2 = tmp; }
-            if (t1 > tmin) tmin = t1;
+            if (t1 > tmin) { tmin = t1; entry_axis = a; }
             if (t2 < tmax) tmax = t2;
             if (tmin > tmax)
                 return false;
         }
         *t_out = tmin;
+        if (hp_out)
+            *hp_out = v3_add(o, v3_scale(d, tmin));
+        if (n_out) {
+            *n_out = v3(0.0f, 0.0f, 0.0f);
+            if (entry_axis >= 0) { /* normal opposes the ray on the entry face */
+                float sgn = da[entry_axis] > 0.0f ? -1.0f : 1.0f;
+                if (entry_axis == 0) n_out->x = sgn;
+                else if (entry_axis == 1) n_out->y = sgn;
+                else n_out->z = sgn;
+            }
+        }
         return tmax >= 0.0f;
     }
 
@@ -342,6 +364,7 @@ static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
         float ox = o.x - s->cyl.base.x, oz = o.z - s->cyl.base.z;
         float a = d.x * d.x + d.z * d.z;
         float best = -1.0f;
+        bool side = false;
         if (a > 1e-8f) {
             float b = 2.0f * (ox * d.x + oz * d.z);
             float c = ox * ox + oz * oz - s->cyl.radius * s->cyl.radius;
@@ -354,6 +377,7 @@ static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
                     float y = o.y + t * d.y;
                     if (t > 1e-4f && t < tmax && y >= s->cyl.base.y && y <= s->cyl.base.y + s->cyl.height) {
                         best = t;
+                        side = true;
                         break;
                     }
                 }
@@ -369,6 +393,17 @@ static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
         if (best < 0.0f)
             return false;
         *t_out = best;
+        if (hp_out)
+            *hp_out = v3_add(o, v3_scale(d, best));
+        if (n_out) {
+            if (side) {
+                vec3 hp = v3_add(o, v3_scale(d, best));
+                vec3 r = v3(hp.x - s->cyl.base.x, 0.0f, hp.z - s->cyl.base.z);
+                *n_out = v3_norm(r);
+            } else {
+                *n_out = v3(0.0f, d.y > 0.0f ? -1.0f : 1.0f, 0.0f);
+            }
+        }
         return true;
     }
 
@@ -384,6 +419,11 @@ static bool ray_shape(vec3 o, vec3 d, const Shape *s, float tmax, float *t_out)
         for (int i = 0; i < 2; i++) {
             if (cand[i] > 1e-4f && cand[i] < tmax) {
                 *t_out = cand[i];
+                if (hp_out)
+                    *hp_out = v3_add(o, v3_scale(d, cand[i]));
+                if (n_out)
+                    *n_out = v3_scale(v3_sub(*hp_out, s->sphere.center),
+                                      1.0f / s->sphere.radius);
                 return true;
             }
         }
@@ -465,6 +505,120 @@ static Shape pending_shape(const Editor *ed)
     return s;
 }
 
+/* Outward normal mostly horizontal: the ray hit a side wall rather than a
+   top surface. Spheres round off gradually, so they use a higher threshold. */
+static bool hit_is_side(const Shape *s, vec3 n)
+{
+    float ay = fabsf(n.y);
+    return s->type == SHAPE_SPHERE ? ay < 0.7f : ay < 0.5f;
+}
+
+/* Distance from point p to the interval [lo, hi] (0 when inside). */
+static float interval_gap(float lo, float hi, float p)
+{
+    if (p < lo)
+        return lo - p;
+    if (p > hi)
+        return hi - p;
+    return 0.0f;
+}
+
+/* Value in [lo, hi] closest to 0. */
+static float interval_toward_zero(float lo, float hi)
+{
+    if (lo > 0.0f)
+        return lo;
+    if (hi < 0.0f)
+        return hi;
+    return 0.0f;
+}
+
+/* Position the ghost `g` flush against the side of `s` hit at `hp` with
+   outward normal `n`. The attach axis is the normal's dominant horizontal
+   component; the other horizontal axis and the vertical position snap to
+   the placement grid. Box hit faces are exact; for curved hit shapes the
+   contact plane is the supporting plane over the ghost's footprint, so the
+   two shapes touch but never overlap. */
+static void place_on_side(Shape *g, const Shape *s, vec3 hp, vec3 n)
+{
+    int axis = fabsf(n.x) >= fabsf(n.z) ? 0 : 2;
+    int other = axis == 0 ? 2 : 0;
+    float sign = (axis == 0 ? n.x : n.z) >= 0.0f ? 1.0f : -1.0f;
+
+    /* ghost footprint along `other` and its vertical size */
+    float other_c = snap(axis == 0 ? hp.z : hp.x);
+    float other_half, y_size;
+    switch (g->type) {
+    case SHAPE_BOX:
+        other_half = other == 0 ? g->box.max.x : g->box.max.z;
+        y_size = g->box.max.y - g->box.min.y;
+        break;
+    case SHAPE_CYLINDER:
+        other_half = g->cyl.radius;
+        y_size = g->cyl.height;
+        break;
+    default: /* SHAPE_SPHERE */
+        other_half = g->sphere.radius;
+        y_size = 2.0f * g->sphere.radius;
+        break;
+    }
+    float o_lo = other_c - other_half, o_hi = other_c + other_half;
+    float y_lo = snap(hp.y);
+    if (y_lo < 0.0f)
+        y_lo = 0.0f; /* never sink into the floor */
+    float y_hi = y_lo + y_size;
+
+    /* contact plane coordinate along the attach axis */
+    float face;
+    if (s->type == SHAPE_BOX) {
+        face = sign > 0.0f ? (axis == 0 ? s->box.max.x : s->box.max.z)
+                           : (axis == 0 ? s->box.min.x : s->box.min.z);
+    } else if (s->type == SHAPE_CYLINDER) {
+        float ca = axis == 0 ? s->cyl.base.x : s->cyl.base.z;
+        float co = other == 0 ? s->cyl.base.x : s->cyl.base.z;
+        float d = interval_gap(o_lo, o_hi, co);
+        float support = d < s->cyl.radius
+                            ? sqrtf(s->cyl.radius * s->cyl.radius - d * d)
+                            : s->cyl.radius;
+        face = ca + sign * support;
+    } else { /* sphere */
+        float ca = axis == 0 ? s->sphere.center.x : s->sphere.center.z;
+        float co = other == 0 ? s->sphere.center.x : s->sphere.center.z;
+        float q_o = interval_toward_zero(o_lo - co, o_hi - co);
+        float q_y = interval_toward_zero(y_lo - s->sphere.center.y, y_hi - s->sphere.center.y);
+        float u = sqrtf(q_o * q_o + q_y * q_y);
+        float support = u < s->sphere.radius
+                            ? sqrtf(s->sphere.radius * s->sphere.radius - u * u)
+                            : s->sphere.radius;
+        face = ca + sign * support;
+    }
+
+    /* sit the ghost just outside the contact plane */
+    switch (g->type) {
+    case SHAPE_BOX: {
+        float len = axis == 0 ? g->box.max.x - g->box.min.x : g->box.max.z - g->box.min.z;
+        float a_min = sign > 0.0f ? face : face - len;
+        float a_max = a_min + len;
+        if (axis == 0)
+            g->box.min = v3(a_min, y_lo, o_lo), g->box.max = v3(a_max, y_hi, o_hi);
+        else
+            g->box.min = v3(o_lo, y_lo, a_min), g->box.max = v3(o_hi, y_hi, a_max);
+        break;
+    }
+    case SHAPE_CYLINDER: {
+        float a = face + sign * g->cyl.radius;
+        g->cyl.base = axis == 0 ? v3(a, y_lo, other_c) : v3(other_c, y_lo, a);
+        break;
+    }
+    case SHAPE_SPHERE: {
+        float a = face + sign * g->sphere.radius;
+        g->sphere.center = axis == 0 ? v3(a, y_lo + g->sphere.radius, other_c)
+                                     : v3(other_c, y_lo + g->sphere.radius, a);
+        break;
+    }
+    }
+}
+
 void edit_update_ghost(Editor *ed, const Player *p, const Shape *shapes, int shape_count)
 {
     ed->ghost_valid = false;
@@ -477,34 +631,49 @@ void edit_update_ghost(Editor *ed, const Player *p, const Shape *shapes, int sha
         return;
 
     float t = PLACE_HOVER;
+    vec3 hp = v3_add(o, v3_scale(d, t)); /* hover point / floor / shape hit */
+    int hit = -1;
+    vec3 n = v3(0.0f, 0.0f, 0.0f);
+
     if (d.y < -1e-6f) { /* floor plane y = 0 */
         float tf = -o.y / d.y;
-        if (tf > 0.0f && tf < t)
+        if (tf > 0.0f && tf < t) {
             t = tf;
+            hp = v3_add(o, v3_scale(d, t));
+        }
     }
     for (int i = 0; i < shape_count; i++) {
         float ts;
-        if (ray_shape(o, d, &shapes[i], t, &ts) && ts > 0.0f && ts < t)
+        vec3 th, tn;
+        if (ray_shape(o, d, &shapes[i], t, &ts, &th, &tn) && ts > 0.0f && ts < t) {
             t = ts;
+            hit = i;
+            hp = th;
+            n = tn;
+        }
     }
 
-    vec3 hp = v3_add(o, v3_scale(d, t));
-    float cx = snap(hp.x), cz = snap(hp.z);
-    float gy = ground_y(cx, cz, shapes, shape_count);
+    Shape ghost = pending_shape(ed);
+    if (hit >= 0 && hit_is_side(&shapes[hit], n))
+        place_on_side(&ghost, &shapes[hit], hp, n);
+    else {
+        float cx = snap(hp.x), cz = snap(hp.z);
+        float gy = ground_y(cx, cz, shapes, shape_count);
 
-    ed->ghost = pending_shape(ed);
-    switch (ed->ghost.type) {
-    case SHAPE_BOX:
-        ed->ghost.box.min = v3(cx + ed->ghost.box.min.x, gy, cz + ed->ghost.box.min.z);
-        ed->ghost.box.max = v3(cx + ed->ghost.box.max.x, gy + ed->ghost.box.max.y, cz + ed->ghost.box.max.z);
-        break;
-    case SHAPE_CYLINDER:
-        ed->ghost.cyl.base = v3(cx, gy, cz);
-        break;
-    case SHAPE_SPHERE:
-        ed->ghost.sphere.center = v3(cx, gy + ed->ghost.sphere.radius, cz);
-        break;
+        switch (ghost.type) {
+        case SHAPE_BOX:
+            ghost.box.min = v3(cx + ghost.box.min.x, gy, cz + ghost.box.min.z);
+            ghost.box.max = v3(cx + ghost.box.max.x, gy + ghost.box.max.y, cz + ghost.box.max.z);
+            break;
+        case SHAPE_CYLINDER:
+            ghost.cyl.base = v3(cx, gy, cz);
+            break;
+        case SHAPE_SPHERE:
+            ghost.sphere.center = v3(cx, gy + ghost.sphere.radius, cz);
+            break;
+        }
     }
+    ed->ghost = ghost;
     ed->ghost_valid = true;
 }
 
@@ -531,7 +700,8 @@ void edit_update_remove(Editor *ed, const Player *p, const Shape *shapes, int sh
     float best = FLT_MAX;
     for (int i = 0; i < shape_count; i++) {
         float t;
-        if (ray_shape(o, d, &shapes[i], best, &t) && t > 0.0f && t < best) {
+        vec3 th, tn;
+        if (ray_shape(o, d, &shapes[i], best, &t, &th, &tn) && t > 0.0f && t < best) {
             best = t;
             ed->remove_idx = i;
         }

@@ -12,11 +12,15 @@
 
    EDIT_PLAY   normal play
    EDIT_MENU   mouse-driven build menu (mouse released, text input active);
-               pick a shape, type its dimensions, Enter / OK confirms
-   EDIT_PLACE  ghost of the shape follows the crosshair; left-click places;
-               E reopens the menu; Esc cancels build mode entirely
+               pick a shape, type its dimensions, Enter / OK confirms;
+               R switches to remove mode
+   EDIT_PLACE  ghost of the shape follows the crosshair, snapping to the
+               ground and to the sides of shapes; left-click places;
+               E reopens the menu; R switches to remove mode; Esc cancels
+               build mode entirely
    EDIT_REMOVE outline highlights the shape under the crosshair; left-click
-               removes it; R or Esc returns to play */
+               removes it; R or Esc returns to play; E switches to the
+               build menu */
 
 typedef enum { EDIT_PLAY, EDIT_MENU, EDIT_PLACE, EDIT_REMOVE } EditMode;
 
