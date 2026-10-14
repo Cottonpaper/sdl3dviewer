@@ -21,7 +21,7 @@ typedef struct {
 
 void player_init(Player *p, vec3 spawn);
 void player_look(Player *p, float dx, float dy);
-void player_update(Player *p, const PlayerInput *in, float dt, const Box *boxes, int box_count);
+void player_update(Player *p, const PlayerInput *in, float dt, const Shape *shapes, int shape_count);
 
 vec3 player_eye(const Player *p);
 vec3 player_forward(const Player *p);

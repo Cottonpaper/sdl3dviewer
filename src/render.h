@@ -3,12 +3,14 @@
 
 #include <stdbool.h>
 
+#include "edit.h"
 #include "player.h"
 #include "scene.h"
 
 bool render_init(void);
 void render_resize(int width, int height);
-void render_frame(const Player *player, const Box *boxes, int box_count);
+void render_set_ui_size(int width, int height); /* UI space in window coords */
+void render_frame(const Player *player, const Shape *shapes, int shape_count, const Editor *ed);
 void render_shutdown(void);
 
 #endif

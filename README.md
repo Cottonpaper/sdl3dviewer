@@ -17,8 +17,11 @@ Runs on Windows and Linux, built with a plain GNU Makefile.
 | W A S D / arrow keys | Move |
 | Shift | Sprint |
 | Space | Jump |
-| Esc | Release mouse (press again to quit) |
-| Left click | Recapture mouse |
+| Esc | Release mouse (press again to quit) / exit build mode, close menu |
+| E | Build menu (choose shape, type dimensions, Enter to place) |
+| Left click | Recapture mouse / in the menu: click buttons and fields / place in build mode |
+| Right click | Cancel menu / build mode |
+| F5 | Save the level to disk |
 
 ## Building
 
@@ -43,6 +46,25 @@ Runs on Windows and Linux, built with a plain GNU Makefile.
 `SDL3.dll` and every MSYS2 runtime DLL it depends on (e.g. `libiconv-2.dll`, found automatically
 by scanning the DLL import tables) are copied next to the `.exe` during the build, so the
 contents of `build/release/` can be run directly (double-click) or copied elsewhere.
+
+### Level persistence
+
+The world (built-in level + everything placed in build mode) is saved automatically
+when the game closes, and any time with `F5`. The file lives in SDL's per-user
+preferences directory: `%APPDATA%\sdl3dviewer\level.txt` on Windows, and on Linux
+`~/.local/share/sdl3dviewer/level.txt`. The exact path is printed to the console
+(debug build) at startup.
+
+- If the file exists it **replaces** the built-in level at startup; without it you
+  get the built-in level again (so deleting the file resets the game).
+- The format is plain text, one shape per line, easy to edit by hand:
+
+  ```
+  # sdl3dviewer level v1
+  box      x0 y0 z0 x1 y1 z1  r g b
+  cylinder cx cy cz radius height  r g b
+  sphere   cx cy cz radius  r g b
+  ```
 
 ### Linux
 
@@ -71,9 +93,11 @@ make run
 
 ```
 src/main.c      SDL/GL setup, event loop, input
-src/player.c    first-person movement, gravity, jumping, AABB collision
-src/render.c    shaders, cube mesh, drawing
-src/scene.c     hardcoded level (boxes)
+src/player.c    first-person movement, gravity, jumping, shape collision
+src/render.c    shaders, meshes (box/cylinder/sphere), UI overlay
+src/scene.c     level shapes + shapes added in build mode
+src/edit.c      build mode: menu, ghost preview, placement
+src/font.c      built-in 5x7 bitmap font for the menu
 src/mathx.h     vec3 / mat4 helpers
 external/glad/  generated OpenGL 3.3 core loader
 ```
