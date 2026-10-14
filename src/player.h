@@ -17,6 +17,9 @@ typedef struct {
     float yaw;     /* radians, 0 = +X */
     float pitch;   /* radians, clamped to about +/-89 degrees */
     bool grounded;
+    float sens;        /* mouse sensitivity multiplier, 1.0 = default */
+    float speed;       /* walk speed, units/s */
+    float sprint_mult; /* sprint speed multiplier */
 } Player;
 
 void player_init(Player *p, vec3 spawn);

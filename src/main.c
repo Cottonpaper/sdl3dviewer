@@ -6,6 +6,7 @@
 #include <SDL3/SDL_main.h>
 
 #include "edit.h"
+#include "menu.h"
 #include "player.h"
 #include "render.h"
 #include "scene.h"
@@ -26,12 +27,13 @@ static void set_mouse_captured(SDL_Window *window, bool *captured, bool on)
     SDL_SetWindowRelativeMouseMode(window, on);
 }
 
-/* Keep mouse capture and text input matching the editor mode: the menu needs
-   a free cursor and typed digits, everything else follows the player's last
-   look preference. */
-static void sync_modes(SDL_Window *window, bool *captured, bool *text_active, const Editor *ed, bool want_look)
+/* Keep mouse capture and text input matching the UI mode: the build menu and
+   pause menu need a free cursor, text input only in the build menu,
+   everything else follows the player's last look preference. */
+static void sync_modes(SDL_Window *window, bool *captured, bool *text_active,
+                       const Editor *ed, const MenuState *menu, bool want_look)
 {
-    bool want_cap = want_look && ed->mode != EDIT_MENU;
+    bool want_cap = want_look && ed->mode != EDIT_MENU && menu->mode == MENU_CLOSED;
     if (want_cap != *captured)
         set_mouse_captured(window, captured, want_cap);
 
@@ -45,17 +47,18 @@ static void sync_modes(SDL_Window *window, bool *captured, bool *text_active, co
     }
 }
 
-static void update_view_size(SDL_Window *window, Editor *ed)
+static void update_view_size(SDL_Window *window, Editor *ed, MenuState *menu)
 {
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
     edit_set_view_size(ed, w, h);
+    menu_set_view_size(menu, w, h);
     render_set_ui_size(w, h);
 }
 
-/* Level file lives in SDL's per-user pref directory so it works no matter
+/* Data files live in SDL's per-user pref directory so they work no matter
    how the game is started. */
-static void level_file_path(char *buf, size_t n)
+static void pref_file_path(char *buf, size_t n, const char *file)
 {
     buf[0] = '\0';
     char *dir = SDL_GetPrefPath("", "sdl3dviewer");
@@ -63,7 +66,7 @@ static void level_file_path(char *buf, size_t n)
         SDL_Log("Failed to get pref path: %s", SDL_GetError());
         return;
     }
-    snprintf(buf, n, "%slevel.txt", dir);
+    snprintf(buf, n, "%s%s", dir, file);
     SDL_free(dir);
 }
 
@@ -77,6 +80,47 @@ static void save_level(const char *path)
         SDL_Log("Level saved to %s", path);
     else
         SDL_Log("Failed to save level to %s: %s", path, SDL_GetError());
+}
+
+static void load_settings(const char *path, MenuState *menu)
+{
+    menu_init(menu);
+    FILE *fp = fopen(path, "r");
+    if (!fp)
+        return;
+    char line[128];
+    while (fgets(line, sizeof(line), fp)) {
+        float v;
+        if (sscanf(line, "sensitivity %f", &v) == 1)
+            menu->sens = v;
+        else if (sscanf(line, "speed %f", &v) == 1)
+            menu->speed = v;
+        else if (sscanf(line, "sprint_mult %f", &v) == 1)
+            menu->sprint_mult = v;
+    }
+    fclose(fp);
+    menu_sanitize(menu);
+}
+
+static void save_settings(const char *path, const MenuState *menu)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        SDL_Log("Failed to save settings to %s: %s", path, SDL_GetError());
+        return;
+    }
+    fprintf(fp, "# sdl3dviewer settings v1\n");
+    fprintf(fp, "sensitivity %g\n", menu->sens);
+    fprintf(fp, "speed %g\n", menu->speed);
+    fprintf(fp, "sprint_mult %g\n", menu->sprint_mult);
+    fclose(fp);
+}
+
+static void apply_settings(Player *player, const MenuState *menu)
+{
+    player->sens = menu->sens;
+    player->speed = menu->speed;
+    player->sprint_mult = menu->sprint_mult;
 }
 
 static PlayerInput read_input(void)
@@ -149,7 +193,7 @@ int main(int argc, char **argv)
     scene_init();
 
     char lvl_path[512];
-    level_file_path(lvl_path, sizeof(lvl_path));
+    pref_file_path(lvl_path, sizeof(lvl_path), "level.txt");
     SDL_Log("Level file: %s", lvl_path);
     if (scene_load(lvl_path)) {
         int n;
@@ -163,7 +207,16 @@ int main(int argc, char **argv)
 
     Editor editor;
     edit_init(&editor);
-    update_view_size(window, &editor);
+
+    MenuState menu;
+    menu_init(&menu);
+    update_view_size(window, &editor, &menu);
+
+    char set_path[512];
+    pref_file_path(set_path, sizeof(set_path), "settings.txt");
+    load_settings(set_path, &menu);
+    apply_settings(&player, &menu);
+    SDL_Log("Settings file: %s (sensitivity %gx)", set_path, menu.sens);
 
     bool captured = false;
     bool text_active = false;
@@ -187,24 +240,38 @@ int main(int argc, char **argv)
                     if (e.key.scancode == SDL_SCANCODE_F5) {
                         save_level(lvl_path);
                     } else if (e.key.scancode == SDL_SCANCODE_ESCAPE) {
-                        if (editor.mode != EDIT_PLAY)
+                        if (menu.mode != MENU_CLOSED) {
+                            if (menu.mode == MENU_SETTINGS)
+                                menu.mode = MENU_MAIN; /* back to main menu */
+                            else
+                                menu.mode = MENU_CLOSED; /* return to game */
+                        } else if (editor.mode != EDIT_PLAY) {
                             edit_cancel(&editor); /* close menu / exit build mode */
-                        else if (captured) {
-                            want_look = false;
-                            set_mouse_captured(window, &captured, false);
-                        } else
-                            running = false;
-                    } else {
+                        } else {
+                            menu.mode = MENU_MAIN; /* open the pause menu */
+                        }
+                    } else if (menu.mode == MENU_CLOSED) {
                         edit_key(&editor, (int)e.key.scancode);
                     }
-                    sync_modes(window, &captured, &text_active, &editor, want_look);
+                    sync_modes(window, &captured, &text_active, &editor, &menu, want_look);
                 }
                 break;
             case SDL_EVENT_TEXT_INPUT:
                 edit_text_input(&editor, e.text.text);
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (editor.mode == EDIT_MENU) {
+                if (menu.mode != MENU_CLOSED) {
+                    MenuState old = menu;
+                    MenuAction act = menu_click(&menu, e.button.button, e.button.x, e.button.y);
+                    if (menu_differs(&menu, &old)) {
+                        apply_settings(&player, &menu);
+                        save_settings(set_path, &menu);
+                    }
+                    if (act == MENU_ACT_RESUME)
+                        menu.mode = MENU_CLOSED;
+                    else if (act == MENU_ACT_QUIT)
+                        running = false;
+                } else if (editor.mode == EDIT_MENU) {
                     edit_mouse_click(&editor, e.button.button, e.button.x, e.button.y);
                 } else if (editor.mode == EDIT_PLACE) {
                     if (e.button.button == SDL_BUTTON_LEFT) {
@@ -224,10 +291,12 @@ int main(int argc, char **argv)
                     want_look = true;
                     set_mouse_captured(window, &captured, true);
                 }
-                sync_modes(window, &captured, &text_active, &editor, want_look);
+                sync_modes(window, &captured, &text_active, &editor, &menu, want_look);
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                if (editor.mode == EDIT_MENU)
+                if (menu.mode != MENU_CLOSED)
+                    menu_mouse_move(&menu, e.motion.x, e.motion.y);
+                else if (editor.mode == EDIT_MENU)
                     edit_mouse_move(&editor, e.motion.x, e.motion.y);
                 else if (captured)
                     player_look(&player, e.motion.xrel, e.motion.yrel);
@@ -236,7 +305,7 @@ int main(int argc, char **argv)
                 render_resize(e.window.data1, e.window.data2);
                 break;
             case SDL_EVENT_WINDOW_RESIZED:
-                update_view_size(window, &editor);
+                update_view_size(window, &editor, &menu);
                 break;
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 set_mouse_captured(window, &captured, false);
@@ -265,7 +334,7 @@ int main(int argc, char **argv)
         else if (editor.mode == EDIT_REMOVE)
             edit_update_remove(&editor, &player, shapes, shape_count);
 
-        render_frame(&player, shapes, shape_count, &editor);
+        render_frame(&player, shapes, shape_count, &editor, &menu);
         SDL_GL_SwapWindow(window);
 
         fps_frames++;

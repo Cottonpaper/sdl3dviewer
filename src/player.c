@@ -4,7 +4,7 @@
 #define PLAYER_HEIGHT   1.8f
 #define EYE_HEIGHT      1.65f
 #define WALK_SPEED      5.0f
-#define SPRINT_SPEED    9.0f
+#define SPRINT_MULT     1.8f
 #define JUMP_SPEED      7.5f
 #define GRAVITY         20.0f
 #define MAX_FALL_SPEED  50.0f
@@ -18,13 +18,16 @@ void player_init(Player *p, vec3 spawn)
     p->yaw = mx_radians(-90.0f); /* look down -Z */
     p->pitch = 0.0f;
     p->grounded = false;
+    p->sens = 1.0f;
+    p->speed = WALK_SPEED;
+    p->sprint_mult = SPRINT_MULT;
 }
 
 void player_look(Player *p, float dx, float dy)
 {
     const float limit = mx_radians(89.0f);
-    p->yaw += dx * MOUSE_SENS;
-    p->pitch = mx_clampf(p->pitch - dy * MOUSE_SENS, -limit, limit);
+    p->yaw += dx * MOUSE_SENS * p->sens;
+    p->pitch = mx_clampf(p->pitch - dy * MOUSE_SENS * p->sens, -limit, limit);
 
     if (p->yaw > MX_PI) p->yaw -= 2.0f * MX_PI;
     if (p->yaw < -MX_PI) p->yaw += 2.0f * MX_PI;
@@ -215,7 +218,7 @@ void player_update(Player *p, const PlayerInput *in, float dt, const Shape *shap
     if (in->back)    wish = v3_sub(wish, fwd);
     if (in->right)   wish = v3_add(wish, right);
     if (in->left)    wish = v3_sub(wish, right);
-    wish = v3_scale(v3_norm(wish), in->sprint ? SPRINT_SPEED : WALK_SPEED);
+    wish = v3_scale(v3_norm(wish), in->sprint ? p->speed * p->sprint_mult : p->speed);
 
     p->vel.x = wish.x;
     p->vel.z = wish.z;

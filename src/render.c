@@ -10,6 +10,7 @@
 
 #include "edit.h"
 #include "font.h"
+#include "menu.h"
 
 #define FOG_R 0.62f
 #define FOG_G 0.74f
@@ -652,6 +653,12 @@ static void ui_text_centered(const EditRect *r, const char *s, float scale, floa
             r->y + (r->h - FONT_GLYPH_H * scale) * 0.5f, s, scale, r_, g_, b_, a_);
 }
 
+static void ui_text_centered_at(float x, float y, float w, float h,
+                                const char *s, float scale, float r_, float g_, float b_, float a_)
+{
+    ui_text_centered(&(EditRect){ x, y, w, h }, s, scale, r_, g_, b_, a_);
+}
+
 static void draw_menu(const Editor *ed)
 {
     EditMenuLayout L;
@@ -740,7 +747,64 @@ static void draw_hud(const Editor *ed)
     ui_flush();
 }
 
-void render_frame(const Player *player, const Shape *shapes, int shape_count, const Editor *ed)
+static void draw_pause_menu(const MenuState *m)
+{
+    MenuLayout L;
+    menu_layout(m, &L);
+
+    ui_count = 0;
+    /* dim the world slightly so the panel reads; the level stays visible */
+    ui_rect(0.0f, 0.0f, view_w, view_h, 0.0f, 0.0f, 0.0f, 0.35f);
+    ui_rect(L.panel.x, L.panel.y, L.panel.w, L.panel.h, 0.06f, 0.07f, 0.09f, 0.92f);
+
+    if (m->mode == MENU_MAIN) {
+        static const char *labels[3] = { "RETURN TO GAME", "SETTINGS", "EXIT" };
+        ui_text_centered_at(L.title.x, L.title.y, L.title.w, L.title.h,
+                            "PAUSED", 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+        for (int i = 0; i < 3; i++) {
+            const MenuRect *r = &L.buttons[i];
+            bool hover = m->mx >= r->x && m->mx < r->x + r->w &&
+                         m->my >= r->y && m->my < r->y + r->h;
+            ui_rect(r->x, r->y, r->w, r->h, hover ? 0.16f : 0.11f, hover ? 0.18f : 0.12f,
+                    hover ? 0.23f : 0.16f, 1.0f);
+            ui_text_centered_at(r->x, r->y, r->w, r->h, labels[i], 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+        }
+    } else {
+        ui_text_centered_at(L.title.x, L.title.y, L.title.w, L.title.h,
+                            "SETTINGS", 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+
+        for (int i = 0; i < MENU_SETTING_COUNT; i++) {
+            ui_text(L.row_label[i].x, L.row_label[i].y + 2.0f, menu_setting_label(i),
+                    1.5f, 0.65f, 0.70f, 0.75f, 1.0f);
+
+            const MenuRect *mi = &L.row_minus[i], *va = &L.row_value[i], *pl = &L.row_plus[i];
+            bool hover_mi = m->mx >= mi->x && m->mx < mi->x + mi->w && m->my >= mi->y && m->my < mi->y + mi->h;
+            bool hover_pl = m->mx >= pl->x && m->mx < pl->x + pl->w && m->my >= pl->y && m->my < pl->y + pl->h;
+            ui_rect(mi->x, mi->y, mi->w, mi->h, hover_mi ? 0.16f : 0.11f, hover_mi ? 0.18f : 0.12f,
+                    hover_mi ? 0.23f : 0.16f, 1.0f);
+            ui_rect(pl->x, pl->y, pl->w, pl->h, hover_pl ? 0.16f : 0.11f, hover_pl ? 0.18f : 0.12f,
+                    hover_pl ? 0.23f : 0.16f, 1.0f);
+            ui_text_centered_at(mi->x, mi->y, mi->w, mi->h, "<", 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+            ui_text_centered_at(pl->x, pl->y, pl->w, pl->h, ">", 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+
+            /* value box, styled like the build menu's fields */
+            ui_rect(va->x - 2.0f, va->y - 2.0f, va->w + 4.0f, va->h + 4.0f, 0.30f, 0.33f, 0.38f, 1.0f);
+            ui_rect(va->x, va->y, va->w, va->h, 0.10f, 0.11f, 0.14f, 1.0f);
+            ui_text_centered_at(va->x, va->y, va->w, va->h, menu_setting_text(m, i), 2.0f,
+                                0.95f, 0.95f, 0.95f, 1.0f);
+        }
+
+        const MenuRect *bk = &L.back;
+        bool hover_bk = m->mx >= bk->x && m->mx < bk->x + bk->w && m->my >= bk->y && m->my < bk->y + bk->h;
+        ui_rect(bk->x, bk->y, bk->w, bk->h, hover_bk ? 0.16f : 0.11f, hover_bk ? 0.18f : 0.12f,
+                hover_bk ? 0.23f : 0.16f, 1.0f);
+        ui_text_centered_at(bk->x, bk->y, bk->w, bk->h, "BACK", 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
+    }
+    ui_flush();
+}
+
+void render_frame(const Player *player, const Shape *shapes, int shape_count,
+                  const Editor *ed, const MenuState *menu)
 {
     vec3 eye = player_eye(player);
     mat4 view = mat4_look_at(eye, v3_add(eye, player_forward(player)), v3(0.0f, 1.0f, 0.0f));
@@ -772,6 +836,9 @@ void render_frame(const Player *player, const Shape *shapes, int shape_count, co
         else
             draw_hud(ed);
     }
+
+    if (menu && menu->mode != MENU_CLOSED)
+        draw_pause_menu(menu);
 }
 
 void render_shutdown(void)
