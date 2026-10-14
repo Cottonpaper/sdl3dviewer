@@ -269,6 +269,13 @@ int main(int argc, char **argv)
                     }
                     if (act == MENU_ACT_RESUME)
                         menu.mode = MENU_CLOSED;
+                    else if (act == MENU_ACT_RESET_WORLD) {
+                        scene_init(); /* discard edits, back to built-in level */
+                        player_init(&player, scene_spawn());
+                        if (remove(lvl_path) == 0)
+                            SDL_Log("Deleted saved level %s", lvl_path);
+                        menu.mode = MENU_CLOSED;
+                    }
                     else if (act == MENU_ACT_QUIT)
                         running = false;
                 } else if (editor.mode == EDIT_MENU) {

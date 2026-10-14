@@ -6,13 +6,13 @@
 /* Pause menu, opened with Esc during normal play. Overlays the running
    game: the world keeps rendering behind the panel.
 
-   MENU_MAIN     Return to game / Settings / Exit
+   MENU_MAIN     Return to game / Settings / Exit / Reset world
    MENU_SETTINGS mouse sensitivity, move speed and sprint multiplier
                  steppers + back */
 
 typedef enum { MENU_CLOSED, MENU_MAIN, MENU_SETTINGS } MenuMode;
 
-typedef enum { MENU_ACT_NONE, MENU_ACT_RESUME, MENU_ACT_QUIT } MenuAction;
+typedef enum { MENU_ACT_NONE, MENU_ACT_RESUME, MENU_ACT_QUIT, MENU_ACT_RESET_WORLD } MenuAction;
 
 #define MENU_SETTING_COUNT 3 /* rows in the settings menu */
 
@@ -30,6 +30,7 @@ typedef struct {
 typedef struct {
     MenuRect panel, title;
     MenuRect buttons[3]; /* main menu: return / settings / exit */
+    MenuRect reset;      /* main menu: reset world, bottom left */
     MenuRect row_label[MENU_SETTING_COUNT];   /* settings rows */
     MenuRect row_minus[MENU_SETTING_COUNT];
     MenuRect row_value[MENU_SETTING_COUNT];

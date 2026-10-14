@@ -123,6 +123,8 @@ MenuAction menu_click(MenuState *m, int button, float x, float y)
         }
         if (in_rect(&L.buttons[2], x, y))
             return MENU_ACT_QUIT;
+        if (in_rect(&L.reset, x, y))
+            return MENU_ACT_RESET_WORLD;
         return MENU_ACT_NONE;
     }
 
@@ -165,6 +167,7 @@ void menu_layout(const MenuState *m, MenuLayout *out)
     for (int i = 0; i < MENU_SETTING_COUNT; i++)
         out->row_label[i] = out->row_minus[i] = out->row_value[i] = out->row_plus[i] = zero;
     out->back = zero;
+    out->reset = zero;
 
     float h;
     if (m->mode == MENU_MAIN) {
@@ -173,12 +176,15 @@ void menu_layout(const MenuState *m, MenuLayout *out)
             btn_y[i] = y;
             y += btn_h + (i < 2 ? btn_gap : 0.0f);
         }
+        float reset_y = y + btn_gap; /* reset button sits at the panel's bottom left */
+        y = reset_y + btn_h;
         h = y + pad;
         float y0 = (m->view_h - h) * 0.5f;
         out->panel = (MenuRect){ x0, y0, w, h };
         out->title = (MenuRect){ x0, y0 + title_y, w, title_h };
         for (int i = 0; i < 3; i++)
             out->buttons[i] = (MenuRect){ x0 + pad, y0 + btn_y[i], btn_w, btn_h };
+        out->reset = (MenuRect){ x0 + pad, y0 + reset_y, (btn_w - 12.0f) * 0.5f, btn_h };
     } else {
         float label_y[MENU_SETTING_COUNT], row_y[MENU_SETTING_COUNT], back_y;
         for (int i = 0; i < MENU_SETTING_COUNT; i++) {

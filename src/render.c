@@ -788,6 +788,14 @@ static void draw_pause_menu(const MenuState *m)
                     hover ? 0.23f : 0.16f, 1.0f);
             ui_text_centered_at(r->x, r->y, r->w, r->h, labels[i], 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
         }
+
+        const MenuRect *rs = &L.reset;
+        bool hover_rs = m->mx >= rs->x && m->mx < rs->x + rs->w &&
+                        m->my >= rs->y && m->my < rs->y + rs->h;
+        ui_rect(rs->x, rs->y, rs->w, rs->h, hover_rs ? 0.16f : 0.11f, hover_rs ? 0.18f : 0.12f,
+                hover_rs ? 0.23f : 0.16f, 1.0f);
+        ui_text_centered_at(rs->x, rs->y, rs->w, rs->h, "RESET WORLD", 1.5f,
+                            0.95f, 0.95f, 0.95f, 1.0f);
     } else {
         ui_text_centered_at(L.title.x, L.title.y, L.title.w, L.title.h,
                             "SETTINGS", 2.0f, 0.95f, 0.95f, 0.95f, 1.0f);
