@@ -1,7 +1,7 @@
-# WARNING: AI SLOP
+# ![WARNING! AI SLOP](https://img.shields.io/badge/-WARNING!_AI_SLOP-red?style=for-the-badge)
 
-This repo is written entirely with Opus 5.5/GLM 5.3 Flash in opencode. big gay balls
-
+> [!WARNING]
+> This repository was largely AI-generated with minimal human review. Verify before relying on it.
 
 
 # sdl3dviewer
